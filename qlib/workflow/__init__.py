@@ -190,7 +190,7 @@ class QlibRecorder:
 
         .. code-block:: Python
 
-            exps = R.list_experiments()
+            experiments = R.list_experiments()
 
         Returns
         -------

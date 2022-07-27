@@ -1,13 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
 
 import collections
+from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
 
 import qlib
-from qlib.config import REG_CN
+from qlib.config import QlibConfig, REG_CN
 from qlib.contrib.ops.high_freq import BFillNan, Cut, Date, DayCumsum, DayLast, FFillNan, IsInf, IsNull, Select
 from qlib.data.dataset import DatasetH
 
@@ -70,10 +72,13 @@ class DataWrapper:
         return data
 
 
-def init_qlib(config: dict, part: Optional[str] = None) -> None:
+def init_qlib(config: QlibConfig, part: Optional[str] = None) -> None:
+    def _convert_path_type(path: str | Path) -> Path:
+        return path.as_posix() if isinstance(path, Path) else Path(path)
+
     provider_uri_map = {
-        "day": config["provider_uri_day"].as_posix(),
-        "1min": config["provider_uri_1min"].as_posix(),
+        "day": _convert_path_type(config.provider_uri_day),
+        "1min": _convert_path_type(config.provider_uri_1min),
     }
     qlib.init(
         region=REG_CN,

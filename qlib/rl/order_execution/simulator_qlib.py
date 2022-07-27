@@ -15,10 +15,10 @@ from qlib.constant import EPS
 from qlib.rl.data.exchange_wrapper import QlibIntradayBacktestData
 from qlib.rl.from_neutrader.config import ExchangeConfig
 from qlib.rl.from_neutrader.feature import init_qlib
+from qlib.rl.from_neutrader.infra import get_common_infra
 from qlib.rl.order_execution.simulator_simple import SAOEMetrics, SAOEState
 from qlib.rl.order_execution.utils import (
     dataframe_append,
-    get_common_infra,
     get_portfolio_and_indicator,
     get_ticks_slice,
     price_advantage,
@@ -319,7 +319,8 @@ class SingleAssetOrderExecutionQlib(Simulator[Order, SAOEState, float]):
 
         common_infra = get_common_infra(
             self._exchange_config,
-            trade_date=pd.Timestamp(self._order_date),
+            trade_start_date=pd.Timestamp(self._order_date),
+            trade_end_date=pd.Timestamp(self._order_date),
             codes=[instrument],
         )
 

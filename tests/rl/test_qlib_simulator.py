@@ -10,6 +10,7 @@ from qlib.backtest.decision import Order, OrderDir
 from qlib.backtest.executor import NestedExecutor, SimulatorExecutor
 from qlib.backtest.utils import CommonInfrastructure
 from qlib.contrib.strategy import TWAPStrategy
+from qlib.rl.from_neutrader.config import ExchangeConfig
 from qlib.rl.order_execution import CategoricalActionInterpreter
 from qlib.rl.order_execution.simulator_qlib import ExchangeConfig, SingleAssetOrderExecutionQlib
 
