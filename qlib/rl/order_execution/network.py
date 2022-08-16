@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple, cast
+from typing import Dict, List, Tuple, cast
 
 import torch
 import torch.nn as nn
@@ -117,3 +117,57 @@ class Recurrent(nn.Module):
 
         out = torch.cat(sources, -1)
         return self.fc(out)
+
+
+class Attention(nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super().__init__()
+        self.q_net = nn.Linear(in_dim, out_dim)
+        self.k_net = nn.Linear(in_dim, out_dim)
+        self.v_net = nn.Linear(in_dim, out_dim)
+
+    def forward(self, Q, K, V):
+        q = self.q_net(Q)
+        k = self.k_net(K)
+        v = self.v_net(V)
+
+        attn = torch.einsum("ijk,ilk->ijl", q, k)
+        attn = attn.to(Q.device)
+        attn_prob = torch.softmax(attn, dim=-1)
+
+        attn_vec = torch.einsum("ijk,ikl->ijl", attn_prob, v)
+
+        return attn_vec
+
+
+class DualAttentionRNN(Recurrent):
+    """
+    Dual-attention RNN leverages features from yesterday and fuses them into features today.
+    """
+
+    def __init__(self,
+                 obs_space: FullHistoryObs,
+                 hidden_dim: int = 64,
+                 output_dim: int = 32,
+                 rnn_type: Literal["rnn", "lstm", "gru"] = "gru",
+                 rnn_num_layers: int = 1):
+        super().__init__(obs_space, hidden_dim, output_dim, rnn_type, rnn_num_layers)
+
+    def _init_extra_branches(self):
+        self.attention = Attention(self.hidden_dim, self.hidden_dim)
+        self.num_sources += 1
+
+    def _source_features(self, obs: FullHistoryObs, device: torch.device) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        sources, data_out = super()._source_features(obs, device)
+
+        data_prev = obs['data_processed_prev']
+        cur_time = obs['cur_tick'].long()
+        bs_indices = torch.arange(cur_time.size(0), device=device)
+
+        data_prev_in = self.raw_fc(data_prev)
+        data_prev_out, _ = self.prev_rnn(data_prev_in)
+        att_out = self.attention(data_out, data_prev_out, data_prev_out)
+        att_out = att_out[bs_indices, cur_time]
+        sources.insert(1, att_out)
+
+        return sources, data_out

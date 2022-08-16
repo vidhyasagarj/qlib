@@ -22,7 +22,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Sequence, cast
+from typing import List, Optional, Sequence, cast
 
 import cachetools
 import numpy as np
@@ -30,6 +30,7 @@ import pandas as pd
 from cachetools.keys import hashkey
 
 from qlib.backtest.decision import Order, OrderDir
+from qlib.rl.integration.feature import fetch_features
 from qlib.typehint import Literal
 
 DealPriceType = Literal["bid_or_ask", "bid_or_ask_fill", "close"]
@@ -193,6 +194,9 @@ class IntradayProcessedData:
     """Processed data for "yesterday".
     Number of records must be ``time_length``, and columns must be ``feature_dim``."""
 
+
+class QlibIntradayProcessedData(IntradayProcessedData):
+    """Subclass of IntradayProcessedData. Used to handle Dataset Handler style data."""
     def __init__(
         self,
         data_dir: Path,
@@ -233,6 +237,24 @@ class IntradayProcessedData:
             return f"{self.__class__.__name__}({self.today}, {self.yesterday})"
 
 
+class NTIntradayProcessedData(IntradayProcessedData):
+    """Subclass of IntradayProcessedData. Used to handle NT style data."""
+    def __init__(
+        self,
+        stock_id: str,
+        date: pd.Timestamp,
+    ) -> None:
+        def _drop_stock_id(df: pd.DataFrame) -> pd.DataFrame:
+            return df.reset_index().drop(columns=["instrument"]).set_index(["datetime"])
+
+        self.today = _drop_stock_id(fetch_features(stock_id, date))
+        self.yesterday = _drop_stock_id(fetch_features(stock_id, date, yesterday=True))
+
+    def __repr__(self) -> str:
+        with pd.option_context("memory_usage", False, "display.max_info_columns", 1, "display.large_repr", "info"):
+            return f"{self.__class__.__name__}({self.today}, {self.yesterday})"
+
+
 @lru_cache(maxsize=100)  # 100 * 50K = 5MB
 def load_simple_intraday_backtest_data(
     data_dir: Path,
@@ -249,13 +271,18 @@ def load_simple_intraday_backtest_data(
     key=lambda data_dir, stock_id, date, _, __: hashkey(data_dir, stock_id, date),
 )
 def load_intraday_processed_data(
-    data_dir: Path,
+    data_dir: Optional[Path],
     stock_id: str,
     date: pd.Timestamp,
     feature_dim: int,
     time_index: pd.Index,
 ) -> IntradayProcessedData:
-    return IntradayProcessedData(data_dir, stock_id, date, feature_dim, time_index)
+    from qlib.rl.integration.feature import dataset
+    if dataset is None:
+        assert data_dir is not None
+        return QlibIntradayProcessedData(data_dir, stock_id, date, feature_dim, time_index)
+    else:
+        return NTIntradayProcessedData(stock_id, date)
 
 
 def load_orders(
