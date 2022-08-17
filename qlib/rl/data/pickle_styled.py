@@ -197,6 +197,7 @@ class IntradayProcessedData:
 
 class QlibIntradayProcessedData(IntradayProcessedData):
     """Subclass of IntradayProcessedData. Used to handle Dataset Handler style data."""
+
     def __init__(
         self,
         data_dir: Path,
@@ -239,6 +240,7 @@ class QlibIntradayProcessedData(IntradayProcessedData):
 
 class NTIntradayProcessedData(IntradayProcessedData):
     """Subclass of IntradayProcessedData. Used to handle NT style data."""
+
     def __init__(
         self,
         stock_id: str,
@@ -277,7 +279,8 @@ def load_intraday_processed_data(
     feature_dim: int,
     time_index: pd.Index,
 ) -> IntradayProcessedData:
-    from qlib.rl.integration.feature import dataset
+    from qlib.rl.integration.feature import dataset  # pylint: disable=C0415
+
     if dataset is None:
         assert data_dir is not None
         return QlibIntradayProcessedData(data_dir, stock_id, date, feature_dim, time_index)

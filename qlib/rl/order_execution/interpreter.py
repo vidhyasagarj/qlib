@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, cast, List
+from typing import Any, List, cast
 
 import numpy as np
 import pandas as pd
 from gym import spaces
+
 from qlib.constant import EPS
 from qlib.rl.data import pickle_styled
 from qlib.rl.interpreter import ActionInterpreter, StateInterpreter
@@ -198,6 +199,7 @@ class CategoricalActionInterpreter(ActionInterpreter[SAOEState, int, float]):
 
     def interpret(self, state: SAOEState, action: int) -> float:
         assert 0 <= action < len(self.action_values)
+        assert self.env is not None
         if self.max_step is not None and self.env.status["cur_step"] >= self.max_step - 1:
             return state.position
         else:

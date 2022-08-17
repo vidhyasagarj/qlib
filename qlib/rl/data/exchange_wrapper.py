@@ -9,8 +9,9 @@ import pandas as pd
 from qlib.backtest import Exchange, Order
 from qlib.backtest.decision import TradeRange, TradeRangeByTime
 from qlib.rl.order_execution.utils import get_ticks_slice
+from qlib.utils.index_data import IndexData
+
 from .pickle_styled import IntradayBacktestData
-from ...utils.index_data import IndexData
 
 
 class QlibIntradayBacktestData(IntradayBacktestData):

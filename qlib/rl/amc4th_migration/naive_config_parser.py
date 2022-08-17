@@ -33,7 +33,7 @@ def parse(path: str) -> dict:
 
     file_ext_name = os.path.splitext(abs_path)[1]
     if file_ext_name not in (".py", ".json", ".yaml", ".yml"):
-        raise IOError('Only py/yml/yaml/json type are supported now!')
+        raise IOError("Only py/yml/yaml/json type are supported now!")
 
     with tempfile.TemporaryDirectory() as tmp_config_dir:
         tmp_config_file = tempfile.NamedTemporaryFile(dir=tmp_config_dir, suffix=file_ext_name)
@@ -82,8 +82,8 @@ def get_backtest_config_fromfile(path: str) -> dict:
     exchange_config_default = {
         "open_cost": 0.0005,
         "close_cost": 0.0015,
-        "min_cost": 5.,
-        "trade_unit": 100.,
+        "min_cost": 5.0,
+        "trade_unit": 100.0,
         "cash_limit": None,
         "generate_report": False,
     }
@@ -94,7 +94,7 @@ def get_backtest_config_fromfile(path: str) -> dict:
         "debug_single_stock": None,
         "debug_single_day": None,
         "concurrency": -1,
-        "multiplier": 1.,
+        "multiplier": 1.0,
         # "runtime": {},
     }
     backtest_config = merge_a_into_b(a=backtest_config, b=backtest_config_default)
@@ -108,7 +108,7 @@ def convert_instance_config(config: object) -> object:
             type_name = config["type"]
             if "." in type_name:
                 idx = type_name.rindex(".")
-                module_path, class_name = type_name[:idx], type_name[idx + 1:]
+                module_path, class_name = type_name[:idx], type_name[idx + 1 :]
             else:
                 module_path, class_name = "", type_name
 

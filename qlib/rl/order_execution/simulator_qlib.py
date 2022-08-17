@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Generator, Optional
 
 import pandas as pd
+
 from qlib.backtest import get_strategy_executor
 from qlib.backtest.decision import Order
 from qlib.backtest.executor import NestedExecutor

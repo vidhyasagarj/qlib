@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import collections
 from abc import ABCMeta
-from typing import Any, cast, Dict, Generator, List, Tuple
+from typing import Any, Dict, Generator, List, Tuple, cast
 
 import torch
 from tianshou.data import Batch
@@ -153,32 +153,38 @@ class SAOEIntStrategy(SAOEStrategy, metaclass=ABCMeta):
             outer_trade_decision=outer_trade_decision,
             level_infra=level_infra,
             common_infra=common_infra,
-            **kwargs
+            **kwargs,
         )
 
         self._state_interpreter: StateInterpreter = init_instance_by_config(
-            state_interpreter, accept_types=StateInterpreter,
+            state_interpreter,
+            accept_types=StateInterpreter,
         )
         self._action_interpreter: ActionInterpreter = init_instance_by_config(
-            action_interpreter, accept_types=ActionInterpreter,
+            action_interpreter,
+            accept_types=ActionInterpreter,
         )
 
         if isinstance(policy, dict):
             assert network is not None
 
             if isinstance(network, dict):
-                network["kwargs"].update({
-                    "obs_space": self._state_interpreter.observation_space,
-                })
+                network["kwargs"].update(
+                    {
+                        "obs_space": self._state_interpreter.observation_space,
+                    }
+                )
                 network_inst = init_instance_by_config(network)
             else:
                 network_inst = network
 
-            policy["kwargs"].update({
-                "obs_space": self._state_interpreter.observation_space,
-                "action_space": self._action_interpreter.action_space,
-                "network": network_inst,
-            })
+            policy["kwargs"].update(
+                {
+                    "obs_space": self._state_interpreter.observation_space,
+                    "action_space": self._action_interpreter.action_space,
+                    "network": network_inst,
+                }
+            )
             self._policy = init_instance_by_config(policy)
         elif isinstance(policy, BasePolicy):
             self._policy = policy
@@ -216,7 +222,7 @@ class SAOEIntStrategy(SAOEStrategy, metaclass=ABCMeta):
         self._update_last_step_range(self.get_data_cal_avail_range(rtype="step"))
 
         if isinstance(self._env, CollectDataEnvWrapper):
-            self._env.step()
+            self._env.step(None)
 
         oh = self.trade_exchange.get_order_helper()
         order_list = []
@@ -244,10 +250,7 @@ class MultiplexStrategyBase(BaseStrategy, metaclass=ABCMeta):
             trade_exchange=trade_exchange,
         )
 
-        self._strategies = [
-            init_instance_by_config(strategy, accept_types=BaseStrategy)
-            for strategy in strategies
-        ]
+        self._strategies = [init_instance_by_config(strategy, accept_types=BaseStrategy) for strategy in strategies]
 
     def set_env(self, env: EnvWrapper | CollectDataEnvWrapper) -> None:
         for strategy in self._strategies:
@@ -282,7 +285,7 @@ class MultiplexStrategyOnTradeStep(MultiplexStrategyBase):
         for strategy in self._strategies:
             strategy.reset_common_infra(common_infra)
 
-    def reset(self, outer_trade_decision: BaseTradeDecision = None, **kwargs) -> None:
+    def reset(self, outer_trade_decision: BaseTradeDecision = None, **kwargs: Any) -> None:
         super().reset(outer_trade_decision=outer_trade_decision, **kwargs)
 
         if outer_trade_decision is not None:
@@ -293,6 +296,8 @@ class MultiplexStrategyOnTradeStep(MultiplexStrategyBase):
         if self.outer_trade_decision is not None:
             strategy = self._get_current_strategy()
             return strategy.generate_trade_decision(execute_result=execute_result)
+        else:
+            return TradeDecisionWO([], self)
 
     def post_exe_step(self, execute_result: list) -> None:
         if self.outer_trade_decision is not None:

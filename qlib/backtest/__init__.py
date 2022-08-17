@@ -163,7 +163,9 @@ def create_account_instance(
         init_cash=init_cash,
         position_dict=position_dict,
         pos_type=pos_type,
-        benchmark_config={} if benchmark is None else {
+        benchmark_config={}
+        if benchmark is None
+        else {
             "benchmark": benchmark,
             "start_time": start_time,
             "end_time": end_time,
