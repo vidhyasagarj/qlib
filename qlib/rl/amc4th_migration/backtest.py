@@ -17,10 +17,10 @@ from qlib.backtest import collect_data_loop, get_strategy_executor
 from qlib.backtest.decision import TradeRangeByTime
 from qlib.backtest.executor import BaseExecutor, NestedExecutor, SimulatorExecutor
 from qlib.backtest.high_performance_ds import BaseOrderIndicator
+from qlib.constant import FINEST_GRANULARITY
 from qlib.rl.amc4th_migration.naive_config_parser import convert_instance_config, get_backtest_config_fromfile
 from qlib.rl.amc4th_migration.utils import read_order_file
 from qlib.rl.integration.feature import init_qlib
-from qlib.rl.order_execution.constants import FINEST_GRANULARITY
 from qlib.rl.utils.env_wrapper import CollectDataEnvWrapper
 
 
