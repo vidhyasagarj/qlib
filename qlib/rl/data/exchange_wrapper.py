@@ -13,12 +13,20 @@ from .pickle_styled import IntradayBacktestData
 class QlibIntradayBacktestData(IntradayBacktestData):
     """Backtest data for Qlib simulator"""
 
-    def __init__(self, order: Order, exchange: Exchange, start_time: pd.Timestamp, end_time: pd.Timestamp) -> None:
+    def __init__(
+        self,
+        order: Order,
+        exchange: Exchange,
+        ticks_index: pd.DatetimeIndex,
+        ticks_for_order: pd.DatetimeIndex,
+    ) -> None:
         super(QlibIntradayBacktestData, self).__init__()
         self._order = order
         self._exchange = exchange
-        self._start_time = start_time
-        self._end_time = end_time
+        self._start_time = ticks_for_order[0]
+        self._end_time = ticks_for_order[-1]
+        self.ticks_index = ticks_index
+        self.ticks_for_order = ticks_for_order
 
         self._deal_price = cast(
             pd.Series,

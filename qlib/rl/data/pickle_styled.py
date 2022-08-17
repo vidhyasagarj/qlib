@@ -29,7 +29,10 @@ import numpy as np
 import pandas as pd
 from cachetools.keys import hashkey
 
-from qlib.backtest.decision import Order, OrderDir
+from qlib.backtest import Exchange
+from qlib.backtest.decision import Order, OrderDir, TradeRange, TradeRangeByTime
+from qlib.rl.data.exchange_wrapper import QlibIntradayBacktestData
+from qlib.rl.order_execution.utils import get_ticks_slice
 from qlib.typehint import Literal
 
 DealPriceType = Literal["bid_or_ask", "bid_or_ask_fill", "close"]
@@ -256,6 +259,43 @@ def load_intraday_processed_data(
     time_index: pd.Index,
 ) -> IntradayProcessedData:
     return IntradayProcessedData(data_dir, stock_id, date, feature_dim, time_index)
+
+
+@cachetools.cached(  # type: ignore
+    cache=cachetools.LRUCache(100),
+    key=lambda order, _, __: order.key,
+)
+def load_qlib_backtest_data(
+    order: Order,
+    trade_exchange: Exchange,
+    trade_range: TradeRange,
+) -> QlibIntradayBacktestData:
+    data = trade_exchange.get_deal_price(
+        stock_id=order.stock_id,
+        start_time=order.start_time.replace(hour=0, minute=0, second=0),
+        end_time=order.start_time.replace(hour=23, minute=59, second=59),
+        direction=order.direction,
+        method=None,
+    )
+
+    ticks_index = pd.DatetimeIndex(data.index)
+    if isinstance(trade_range, TradeRangeByTime):
+        ticks_for_order = get_ticks_slice(
+            ticks_index,
+            trade_range.start_time,
+            trade_range.end_time,
+            include_end=True,
+        )
+    else:
+        ticks_for_order = None  # FIXME: implement this logic
+
+    backtest_data = QlibIntradayBacktestData(
+        order=order,
+        exchange=trade_exchange,
+        ticks_index=ticks_index,
+        ticks_for_order=ticks_for_order,
+    )
+    return backtest_data
 
 
 def load_orders(

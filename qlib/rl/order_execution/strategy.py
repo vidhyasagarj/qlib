@@ -12,6 +12,7 @@ from qlib.backtest import CommonInfrastructure, Order
 from qlib.backtest.decision import BaseTradeDecision, TradeDecisionWO, TradeRange, TradeRangeByTime
 from qlib.backtest.utils import LevelInfrastructure, SAOE_DATA_KEY
 from qlib.rl.data.exchange_wrapper import QlibIntradayBacktestData
+from qlib.rl.data.pickle_styled import load_qlib_backtest_data
 from qlib.rl.order_execution.state import QlibBacktestAdapter, SAOEState
 from qlib.rl.order_execution.utils import get_ticks_slice
 from qlib.rl.utils.cache import LRUCache
@@ -70,21 +71,20 @@ class SAOEStrategy(RLStrategy):
             backtest_data = QlibIntradayBacktestData(
                 order=order,
                 exchange=self.trade_exchange,
-                start_time=ticks_for_order[0],
-                end_time=ticks_for_order[-1],
+                ticks_index=ticks_index,
+                ticks_for_order=ticks_for_order,
             )
+            saoe_data.put(key=order.key, item=backtest_data)
 
-            saoe_data.put(key=order.key, item=(ticks_index, ticks_for_order, backtest_data))
+        backtest_data = saoe_data.get(order.key)
 
-        ticks_index, ticks_for_order, backtest_data = saoe_data.get(order.key)
+        backtest_data = load_qlib_backtest_data(order, self.trade_exchange, trade_range)
 
         return QlibBacktestAdapter(
             order=order,
             executor=self.executor,
             exchange=self.trade_exchange,
             ticks_per_step=self.ticks_per_step,
-            ticks_index=ticks_index,
-            ticks_for_order=ticks_for_order,
             backtest_data=backtest_data,
         )
 
@@ -110,8 +110,8 @@ class SAOEStrategy(RLStrategy):
         return self.adapter_dict[order.key].saoe_state
 
     def post_upper_level_exe_step(self) -> None:
-        for maintainer in self.adapter_dict.values():
-            maintainer.generate_metrics_after_done()
+        for adapter in self.adapter_dict.values():
+            adapter.generate_metrics_after_done()
 
     def post_exe_step(self, execute_result: list) -> None:
         last_step_length = self._last_step_range[1] - self._last_step_range[0]
@@ -124,8 +124,8 @@ class SAOEStrategy(RLStrategy):
             for e in execute_result:
                 results[e[0].key].append(e)
 
-        for key, maintainer in self.adapter_dict.items():
-            maintainer.update(results[key], self._last_step_range)
+        for key, adapter in self.adapter_dict.items():
+            adapter.update(results[key], self._last_step_range)
 
 
 class DecomposedStrategy(SAOEStrategy):
