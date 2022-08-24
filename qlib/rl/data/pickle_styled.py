@@ -247,7 +247,10 @@ class NTIntradayProcessedData(BaseIntradayProcessedData):
         date: pd.Timestamp,
     ) -> None:
         def _drop_stock_id(df: pd.DataFrame) -> pd.DataFrame:
-            return df.reset_index().drop(columns=["instrument"]).set_index(["datetime"])
+            df = df.reset_index()
+            if "instrument" in df.columns:
+                df = df.drop(columns=["instrument"])
+            return df.set_index(["datetime"])
 
         self.today = _drop_stock_id(fetch_features(stock_id, date))
         self.yesterday = _drop_stock_id(fetch_features(stock_id, date, yesterday=True))

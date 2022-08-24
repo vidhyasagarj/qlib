@@ -1,0 +1,56 @@
+action_interpreter:
+  class: CategoricalActionInterpreter
+  kwargs:
+    values: 4
+  module_path: qlib.rl.order_execution.interpreter
+network:
+  class: DualAttentionRNN
+  kwargs:
+    hidden_dim: 64
+    output_dim: 32
+  module_path: qlib.rl.order_execution.network
+state_interpreter:
+  class: FullHistoryStateInterpreter
+  kwargs:
+    data_dim: 16
+    data_ticks: 240
+    max_step: 8
+  module_path: qlib.rl.order_execution.interpreter
+policy:
+  class: PPO
+  kwargs:
+    lr: 0.0001
+  module_path: qlib.rl.order_execution.policy
+reward:
+  class: PAPenaltyReward
+  kwargs:
+    penalty: 100.0
+  module_path: qlib.rl.order_execution.reward
+runtime:
+  seed: 42
+  use_cuda: true
+env:
+  concurrency: 1  # TODO: restore to 16
+  parallel_mode: dummy  # TODO: restore to shmem
+trainer:
+  max_epoch: 3  # TODO: restore to 500
+  repeat_per_collect: 5
+  earlystop_patience: 40
+  episode_per_collect: 100  # TODO: restore to 10000
+  batch_size: 1024
+  val_every_n_epoch: 100
+data:
+  source:
+    order_dir: ../qlib_amc4th_data/amc-1704-2103-split/random_order_bidir  # TODO: modify data path
+    data_dir: ../qlib_amc4th_data/amc-1704-2103-split/backtest  # TODO: modify data path
+    proc_data_dir: ../qlib_amc4th_data/amc-1704-2103-split/order_feature_unrobust  # TODO: modify data path
+    total_time: 240
+    proc_data_dim: 16
+    default_start_time: 15
+    default_end_time: 225
+    deal_price_column: bid_or_ask
+  num_workers: 0
+  queue_size: 20
+simulator:
+  time_per_step: 30
+  vol_limit: null

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import collections
-from abc import ABCMeta
 from types import GeneratorType
 from typing import Any, cast, Dict, Generator, List, Optional, Union
 
