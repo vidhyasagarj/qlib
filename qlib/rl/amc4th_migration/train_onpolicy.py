@@ -5,7 +5,7 @@ import os
 import random
 import sys
 from pathlib import Path
-from typing import List
+from typing import cast, List
 
 import numpy as np
 import pandas as pd
@@ -15,13 +15,13 @@ from qlib.backtest import Order
 from qlib.backtest.decision import OrderDir
 from qlib.rl.amc4th_migration.time_index import intraday_timestamps
 from qlib.rl.interpreter import ActionInterpreter, StateInterpreter
-from qlib.rl.order_execution import SingleAssetOrderExecution
+from qlib.rl.order_execution import SingleAssetOrderExecutionSimple
 from qlib.rl.reward import Reward
-from qlib.rl.trainer import Checkpoint, Trainer, TrainingVessel
+from qlib.rl.trainer import train
 from qlib.utils import init_instance_by_config
 from tianshou.policy import BasePolicy
 from torch import nn
-from tqdm import tqdm
+from torch.utils.data import Dataset
 
 
 def seed_everything(seed: int) -> None:
@@ -43,24 +43,28 @@ def _read_orders(order_dir: Path) -> pd.DataFrame:
         return pd.concat(orders)
 
 
-def _get_orders(order_dir: Path, default_start_time: pd.Timedelta, default_end_time: pd.Timedelta) -> List[Order]:
-    order_df = _read_orders(order_dir).reset_index()
-    order_df = order_df[order_df["instrument"] == "SH603360"]  # TODO: small dataset
-    order_df = order_df[order_df["date"] == "2017-11-17"]  # TODO: small dataset
-    order_df = order_df[order_df["order_type"] == 0]  # TODO: small dataset
+class LazyLoadDataset(Dataset):
+    def __init__(self, order_dir: Path, default_start_time: pd.Timedelta, default_end_time: pd.Timedelta) -> None:
+        self._default_start_time = default_start_time
+        self._default_end_time = default_end_time
 
-    order_list = []
-    for index, row in tqdm(order_df.iterrows(), total=len(order_df), desc=str(path)):
-        order = Order(
+        self._order_df = _read_orders(order_dir).reset_index()
+        self._order_df = self._order_df[self._order_df["instrument"] == "SH603360"]  # TODO: small dataset
+        self._order_df = self._order_df[self._order_df["date"] == "2017-11-17"]  # TODO: small dataset
+        self._order_df = self._order_df[self._order_df["order_type"] == 0]  # TODO: small dataset
+
+    def __len__(self) -> int:
+        return len(self._order_df)
+
+    def __getitem__(self, index: int) -> Order:
+        row = self._order_df.iloc[index]
+        return Order(
             stock_id=row["instrument"],
             amount=row["amount"],
             direction=OrderDir(int(row["order_type"])),
-            start_time=pd.Timestamp(row["date"]) + default_start_time,
-            end_time=pd.Timestamp(row["date"]) + default_end_time
+            start_time=pd.Timestamp(row["date"]) + self._default_start_time,
+            end_time=pd.Timestamp(row["date"]) + self._default_end_time
         )
-        order_list.append(order)
-
-    return order_list
 
 
 def train_and_test(
@@ -77,8 +81,8 @@ def train_and_test(
     default_end_time = intraday_timestamps[data_config["source"]["default_end_time"]]
     order_root_path = Path(data_config["source"]["order_dir"])
 
-    def _simulator_factory_simple(order: Order) -> SingleAssetOrderExecution:
-        return SingleAssetOrderExecution(
+    def _simulator_factory_simple(order: Order) -> SingleAssetOrderExecutionSimple:
+        return SingleAssetOrderExecutionSimple(
             order=order,
             data_dir=Path(data_config["source"]["data_dir"]),
             ticks_per_step=simulator_config["time_per_step"],
@@ -86,32 +90,34 @@ def train_and_test(
             vol_threshold=simulator_config["vol_limit"],
         )
 
-    trainer = Trainer(
-        max_iters=trainer_config["max_epoch"],
-        finite_env_type=env_config["parallel_mode"],
-        concurrency=env_config["concurrency"],
-        # callbacks=[
+    train_dataset = LazyLoadDataset(order_root_path / "train", default_start_time, default_end_time)
+
+    trainer_kwargs = {
+        "max_iters": trainer_config["max_epoch"],
+        "finite_env_type": env_config["parallel_mode"],
+        "concurrency": env_config["concurrency"],
+        # "callbacks": [
         #     Checkpoint(dirpath=Path("C:/Users/huoranli/Downloads/tmp/"), every_n_iters=1),
         # ],
-    )
+    }
+    vessel_kwargs = {
+        "episode_per_iter": trainer_config["episode_per_collect"],
+        "update_kwargs": {
+            "batch_size": trainer_config["batch_size"],
+            "repeat": trainer_config["repeat_per_collect"],
+        },
+    }
 
-    vessel = TrainingVessel(
+    train(
         simulator_fn=_simulator_factory_simple,
         state_interpreter=state_interpreter,
         action_interpreter=action_interpreter,
         policy=policy,
         reward=reward,
-        train_initial_states=_get_orders(order_root_path / "train", default_start_time, default_end_time),
-        val_initial_states=_get_orders(order_root_path / "valid", default_start_time, default_end_time),
-        test_initial_states=_get_orders(order_root_path / "test", default_start_time, default_end_time),
-        episode_per_iter=trainer_config["episode_per_collect"],
-        update_kwargs={
-            "batch_size": trainer_config["batch_size"],
-            "repeat": trainer_config["repeat_per_collect"],
-        },
+        initial_states=cast(List[Order], train_dataset),
+        trainer_kwargs=trainer_kwargs,
+        vessel_kwargs=vessel_kwargs,
     )
-
-    trainer.fit(vessel)
 
 
 def main(config: dict) -> None:
