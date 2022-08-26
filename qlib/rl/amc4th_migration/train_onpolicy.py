@@ -5,7 +5,7 @@ import os
 import random
 import sys
 from pathlib import Path
-from typing import cast, List
+from typing import cast, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,8 @@ import torch
 import yaml
 from qlib.backtest import Order
 from qlib.backtest.decision import OrderDir
-from qlib.rl.amc4th_migration.time_index import intraday_timestamps
+from qlib.constant import ONE_MIN
+from qlib.rl.data.pickle_styled import load_simple_intraday_backtest_data
 from qlib.rl.interpreter import ActionInterpreter, StateInterpreter
 from qlib.rl.order_execution import SingleAssetOrderExecutionSimple
 from qlib.rl.reward import Reward
@@ -44,27 +45,49 @@ def _read_orders(order_dir: Path) -> pd.DataFrame:
 
 
 class LazyLoadDataset(Dataset):
-    def __init__(self, order_dir: Path, default_start_time: pd.Timedelta, default_end_time: pd.Timedelta) -> None:
-        self._default_start_time = default_start_time
-        self._default_end_time = default_end_time
+    def __init__(
+        self,
+        order_file_path: Path,
+        data_dir: Path,
+        default_start_time_index: int,
+        default_end_time_index: int,
+    ) -> None:
+        self._default_start_time_index = default_start_time_index
+        self._default_end_time_index = default_end_time_index
 
-        self._order_df = _read_orders(order_dir).reset_index()
-        self._order_df = self._order_df[self._order_df["instrument"] == "SH603360"]  # TODO: small dataset
-        self._order_df = self._order_df[self._order_df["date"] == "2017-11-17"]  # TODO: small dataset
-        self._order_df = self._order_df[self._order_df["order_type"] == 0]  # TODO: small dataset
+        self._order_file_path = order_file_path
+        self._order_df = _read_orders(order_file_path).reset_index()
+
+        self._data_dir = data_dir
+        self._ticks_index: Optional[pd.DatetimeIndex] = None
 
     def __len__(self) -> int:
         return len(self._order_df)
 
     def __getitem__(self, index: int) -> Order:
         row = self._order_df.iloc[index]
-        return Order(
+        date = pd.Timestamp(row["date"])
+
+        if self._ticks_index is None:
+            # TODO: We only load ticks index once based on the assumption that ticks index of different dates
+            # TODO: in one experiment are all the same. If that assumption is not hold, we need to load ticks index
+            # TODO: of all dates.
+            backtest_data = load_simple_intraday_backtest_data(
+                data_dir=self._data_dir,
+                stock_id=row["instrument"],
+                date=date
+            )
+            self._ticks_index = [t - date for t in backtest_data.get_time_index()]
+
+        order = Order(
             stock_id=row["instrument"],
             amount=row["amount"],
             direction=OrderDir(int(row["order_type"])),
-            start_time=pd.Timestamp(row["date"]) + self._default_start_time,
-            end_time=pd.Timestamp(row["date"]) + self._default_end_time
+            start_time=date + self._ticks_index[self._default_start_time_index],
+            end_time=date + self._ticks_index[self._default_end_time_index - 1] + ONE_MIN
         )
+
+        return order
 
 
 def train_and_test(
@@ -77,8 +100,6 @@ def train_and_test(
     policy: BasePolicy,
     reward: Reward,
 ) -> None:
-    default_start_time = intraday_timestamps[data_config["source"]["default_start_time"]]
-    default_end_time = intraday_timestamps[data_config["source"]["default_end_time"]]
     order_root_path = Path(data_config["source"]["order_dir"])
 
     def _simulator_factory_simple(order: Order) -> SingleAssetOrderExecutionSimple:
@@ -86,16 +107,28 @@ def train_and_test(
             order=order,
             data_dir=Path(data_config["source"]["data_dir"]),
             ticks_per_step=simulator_config["time_per_step"],
-            deal_price_type=data_config["source"]["deal_price_column"],
+            deal_price_type=data_config["source"].get("deal_price_column", "close"),
             vol_threshold=simulator_config["vol_limit"],
         )
 
-    train_dataset = LazyLoadDataset(order_root_path / "train", default_start_time, default_end_time)
+    train_dataset = LazyLoadDataset(
+        order_file_path=order_root_path / "train",
+        data_dir=Path(data_config["source"]["data_dir"]),
+        default_start_time_index=data_config["source"]["default_start_time"],
+        default_end_time_index=data_config["source"]["default_end_time"],
+    )
+    valid_dataset = LazyLoadDataset(
+        order_file_path=order_root_path / "valid",
+        data_dir=Path(data_config["source"]["data_dir"]),
+        default_start_time_index=data_config["source"]["default_start_time"],
+        default_end_time_index=data_config["source"]["default_end_time"],
+    )
 
     trainer_kwargs = {
         "max_iters": trainer_config["max_epoch"],
         "finite_env_type": env_config["parallel_mode"],
         "concurrency": env_config["concurrency"],
+        "val_every_n_iters": trainer_config.get("val_every_n_epoch", None),
         # "callbacks": [
         #     Checkpoint(dirpath=Path("C:/Users/huoranli/Downloads/tmp/"), every_n_iters=1),
         # ],
@@ -106,6 +139,7 @@ def train_and_test(
             "batch_size": trainer_config["batch_size"],
             "repeat": trainer_config["repeat_per_collect"],
         },
+        "val_initial_states": valid_dataset,
     }
 
     train(
@@ -132,6 +166,8 @@ def main(config: dict) -> None:
     reward: Reward = init_instance_by_config(config["reward"])
 
     # Create torch network
+    if "kwargs" not in config["network"]:
+        config["network"]["kwargs"] = {}
     config["network"]["kwargs"].update({"obs_space": state_interpreter.observation_space})
     network: nn.Module = init_instance_by_config(config["network"])
 

@@ -1,0 +1,52 @@
+simulator:
+  time_per_step: 30
+  vol_limit: null
+env:
+  concurrency: 1
+  parallel_mode: dummy
+action_interpreter:
+  class: CategoricalActionInterpreter
+  kwargs:
+    values: 14
+  module_path: qlib.rl.order_execution.interpreter
+state_interpreter:
+  class: FullHistoryStateInterpreter
+  kwargs:
+    data_dim: 5
+    data_ticks: 390
+    max_step: 13
+  module_path: qlib.rl.order_execution.interpreter
+reward:
+  class: PAPenaltyReward
+  kwargs:
+    penalty: 100.0
+  module_path: qlib.rl.order_execution.reward
+data:
+  source:
+    order_dir: ../NeuTrader/data_sample/us/order_split_aal
+    data_dir: ../NeuTrader/data_sample/us/raw
+    proc_data_dir: ../NeuTrader/data_sample/us/processed
+    total_time: 390
+    default_start_time: 0
+    default_end_time: 390
+    proc_data_dim: 5
+  num_workers: 0
+  queue_size: 20
+network:
+  class: Recurrent
+  module_path: qlib.rl.order_execution.network
+policy:
+  class: PPO
+  kwargs:
+    lr: 0.0001
+  module_path: qlib.rl.order_execution.policy
+runtime:
+  seed: 42
+  use_cuda: false
+trainer:
+  max_epoch: 2
+  repeat_per_collect: 5
+  earlystop_patience: 2
+  episode_per_collect: 20
+  batch_size: 16
+  val_every_n_epoch: 1
