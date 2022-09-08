@@ -192,32 +192,40 @@ def backtest(backtest_config: dict) -> pd.DataFrame:
     stock_pool = order_df["instrument"].unique().tolist()
     stock_pool.sort()
 
-    mp_config = {"n_jobs": backtest_config["concurrency"], "verbose": 10, "backend": "multiprocessing"}
-    torch.set_num_threads(1)  # https://github.com/pytorch/pytorch/issues/17199
-    res = Parallel(**mp_config)(
-        delayed(single)(
-            backtest_config=backtest_config,
-            orders=order_df[order_df["instrument"] == stock].copy(),
-            split="stock",
-            cash_limit=cash_limit,
-            generate_report=generate_report,
-        )
-        for stock in stock_pool
+    single(
+        backtest_config=backtest_config,
+        orders=order_df[order_df["instrument"] == stock_pool[0]].copy(),
+        split="stock",
+        cash_limit=cash_limit,
+        generate_report=generate_report,
     )
 
-    output_path = Path(backtest_config["output_dir"])
-    if generate_report:
-        with (output_path / "report.pkl").open("wb") as f:
-            report = {}
-            for r in res:
-                report.update(r[1])
-            pickle.dump(report, f)
-        res = pd.concat([r[0] for r in res], 0)
-    else:
-        res = pd.concat(res)
-
-    res.to_csv(output_path / "summary.csv")
-    return res
+    # mp_config = {"n_jobs": backtest_config["concurrency"], "verbose": 10, "backend": "multiprocessing"}
+    # torch.set_num_threads(1)  # https://github.com/pytorch/pytorch/issues/17199
+    # res = Parallel(**mp_config)(
+    #     delayed(single)(
+    #         backtest_config=backtest_config,
+    #         orders=order_df[order_df["instrument"] == stock].copy(),
+    #         split="stock",
+    #         cash_limit=cash_limit,
+    #         generate_report=generate_report,
+    #     )
+    #     for stock in stock_pool
+    # )
+    #
+    # output_path = Path(backtest_config["output_dir"])
+    # if generate_report:
+    #     with (output_path / "report.pkl").open("wb") as f:
+    #         report = {}
+    #         for r in res:
+    #             report.update(r[1])
+    #         pickle.dump(report, f)
+    #     res = pd.concat([r[0] for r in res], 0)
+    # else:
+    #     res = pd.concat(res)
+    #
+    # res.to_csv(output_path / "summary.csv")
+    # return res
 
 
 if __name__ == "__main__":
