@@ -239,7 +239,24 @@ class IntradayProcessedData(BaseIntradayProcessedData):
 
 
 class NTIntradayProcessedData(BaseIntradayProcessedData):
-    """Subclass of IntradayProcessedData. Used to handle NT style data."""
+    """Subclass of IntradayProcessedData. Used to handle NT style data.
+
+    The original data should be a pickle file that contains a Pandas dataframe. The dataframe should have the following
+    format:
+        instrument datetime    Field_1  Field_2 ... Field_N
+        INSTRUMENT DATETIME_1    V_1_1    V_1_2 ...   V_1_N
+               ...        ...      ...      ... ...     ...
+        INSTRUMENT DATETIME_M    V_M_1    V_M_2 ...   V_M_N
+
+    or:
+        instrument    Field_1  Field_2 ... Field_N
+        INSTRUMENT      V_1_1    V_1_2 ...   V_1_N
+               ...        ...      ... ...     ...
+        INSTRUMENT      V_M_1    V_M_2 ...   V_M_N
+
+    The index of the dataframe could be (instrument, datetime) or just (instrument). `datetime` should be string or
+    pandas.TimeIndex.
+    """
 
     def __init__(
         self,
@@ -247,7 +264,10 @@ class NTIntradayProcessedData(BaseIntradayProcessedData):
         date: pd.Timestamp,
     ) -> None:
         def _drop_stock_id(df: pd.DataFrame) -> pd.DataFrame:
-            return df.reset_index().drop(columns=["instrument"]).set_index(["datetime"])
+            df = df.reset_index()
+            if "instrument" in df.columns:
+                df = df.drop(columns=["instrument"])
+            return df.set_index(["datetime"])
 
         self.today = _drop_stock_id(fetch_features(stock_id, date))
         self.yesterday = _drop_stock_id(fetch_features(stock_id, date, yesterday=True))

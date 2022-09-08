@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+
 from __future__ import annotations
 
 import copy
@@ -17,7 +18,7 @@ from qlib.backtest import collect_data_loop, get_strategy_executor
 from qlib.backtest.decision import TradeRangeByTime
 from qlib.backtest.executor import BaseExecutor, NestedExecutor, SimulatorExecutor
 from qlib.backtest.high_performance_ds import BaseOrderIndicator
-from qlib.rl.neural_trading_migration.naive_config_parser import convert_instance_config, get_backtest_config_fromfile
+from qlib.rl.neural_trading_migration.naive_config_parser import get_backtest_config_fromfile
 from qlib.rl.neural_trading_migration.utils import read_order_file
 from qlib.rl.data.integration import init_qlib
 from qlib.rl.utils.env_wrapper import CollectDataEnvWrapper
@@ -28,7 +29,6 @@ def _get_multi_level_executor_config(
     cash_limit: float = None,
     generate_report: bool = False,
 ) -> dict:
-    strategy_config = cast(dict, convert_instance_config(strategy_config))
     executor_config = {
         "class": "SimulatorExecutor",
         "module_path": "qlib.backtest.executor",
@@ -192,13 +192,14 @@ def backtest(backtest_config: dict) -> pd.DataFrame:
     stock_pool = order_df["instrument"].unique().tolist()
     stock_pool.sort()
 
-    single(
+    res = single(
         backtest_config=backtest_config,
         orders=order_df[order_df["instrument"] == stock_pool[0]].copy(),
         split="stock",
         cash_limit=cash_limit,
         generate_report=generate_report,
     )
+    print(res)
 
     # mp_config = {"n_jobs": backtest_config["concurrency"], "verbose": 10, "backend": "multiprocessing"}
     # torch.set_num_threads(1)  # https://github.com/pytorch/pytorch/issues/17199

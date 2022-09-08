@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import cachetools
 import numpy as np
@@ -20,10 +20,54 @@ from qlib.constant import REG_CN
 from qlib.contrib.ops.high_freq import BFillNan, Cut, Date, DayCumsum, DayLast, FFillNan, IsInf, IsNull, Select
 from qlib.data.dataset import DatasetH
 
-dataset = None
+dataset: Optional[BaseDataWrapper] = None
 
 
-class DataWrapper:
+class BaseDataWrapper:
+    def __init__(
+        self,
+        columns_today: List[str],
+        columns_yesterday: List[str],
+    ) -> None:
+        self.columns_today = columns_today
+        self.columns_yesterday = columns_yesterday
+
+    @cachetools.cached(  # type: ignore
+        cache=cachetools.LRUCache(100),
+        key=lambda _, stock_id, date, backtest: (stock_id, date.replace(hour=0, minute=0, second=0), backtest),
+    )
+    def get(self, stock_id: str, date: pd.Timestamp, backtest: bool = False) -> pd.DataFrame:
+        raise NotImplementedError
+
+
+class CsvDataWrapper(BaseDataWrapper):
+    def __init__(
+        self,
+        feature_df: pd.DataFrame,
+        backtest_df: pd.DataFrame,
+        columns_today: List[str],
+        columns_yesterday: List[str],
+    ) -> None:
+        super().__init__(columns_today=columns_today, columns_yesterday=columns_yesterday)
+
+        self.feature_df = feature_df
+        self.backtest_df = backtest_df
+
+    @cachetools.cached(  # type: ignore
+        cache=cachetools.LRUCache(100),
+        key=lambda _, stock_id, date, backtest: (stock_id, date.replace(hour=0, minute=0, second=0), backtest),
+    )
+    def get(self, stock_id: str, date: pd.Timestamp, backtest: bool = False) -> pd.DataFrame:
+        start_time, end_time = date.replace(hour=0, minute=0, second=0), date.replace(hour=23, minute=59, second=59)
+        df = self.backtest_df if backtest else self.feature_df
+
+        df = df[df["instrument"] == stock_id]
+        df = df[df["datetime"] >= start_time]
+        df = df[df["datetime"] <= end_time]
+        return df.set_index(["instrument", "datetime"])
+
+
+class PickleDataWrapper(BaseDataWrapper):
     def __init__(
         self,
         feature_dataset: DatasetH,
@@ -31,13 +75,13 @@ class DataWrapper:
         columns_today: List[str],
         columns_yesterday: List[str],
         _internal: bool = False,
-    ):
+    ) -> None:
+        super().__init__(columns_today=columns_today, columns_yesterday=columns_yesterday)
+
         assert _internal, "Init function of data wrapper is for internal use only."
 
         self.feature_dataset = feature_dataset
         self.backtest_dataset = backtest_dataset
-        self.columns_today = columns_today
-        self.columns_yesterday = columns_yesterday
 
     @cachetools.cached(  # type: ignore
         cache=cachetools.LRUCache(100),
@@ -47,6 +91,58 @@ class DataWrapper:
         start_time, end_time = date.replace(hour=0, minute=0, second=0), date.replace(hour=23, minute=59, second=59)
         dataset = self.backtest_dataset if backtest else self.feature_dataset
         return dataset.handler.fetch(pd.IndexSlice[stock_id, start_time:end_time], level=None)
+
+
+def get_pickle_dataset_wrapper(qlib_config: dict, part: str) -> PickleDataWrapper:
+    if part is None:
+        feature_path = Path(qlib_config["feature_root_dir"]) / "feature.pkl"
+        backtest_path = Path(qlib_config["feature_root_dir"]) / "backtest.pkl"
+    else:
+        feature_path = Path(qlib_config["feature_root_dir"]) / "feature" / (part + ".pkl")
+        backtest_path = Path(qlib_config["feature_root_dir"]) / "backtest" / (part + ".pkl")
+
+    with feature_path.open("rb") as f:
+        feature_dataset = pickle.load(f)
+    with backtest_path.open("rb") as f:
+        backtest_dataset = pickle.load(f)
+
+    return PickleDataWrapper(
+        feature_dataset,
+        backtest_dataset,
+        qlib_config["feature_columns_today"],
+        qlib_config["feature_columns_yesterday"],
+        _internal=True,
+    )
+
+
+def get_csv_dataset_wrapper(qlib_config: dict, part: str) -> CsvDataWrapper:
+    if part is None:
+        feature_path = Path(qlib_config["feature_root_dir"]) / "feature.csv"
+        backtest_path = Path(qlib_config["feature_root_dir"]) / "backtest.csv"
+    else:
+        feature_path = Path(qlib_config["feature_root_dir"]) / "feature_csv" / (part + ".csv")
+        backtest_path = Path(qlib_config["feature_root_dir"]) / "backtest_csv" / (part + ".csv")
+
+    feature_df = pd.read_csv(feature_path)
+    backtest_df = pd.read_csv(backtest_path)
+    feature_df['datetime'] = feature_df['datetime'].apply(pd.Timestamp)
+    backtest_df['datetime'] = backtest_df['datetime'].apply(pd.Timestamp)
+
+    return CsvDataWrapper(
+        feature_df,
+        backtest_df,
+        qlib_config["feature_columns_today"],
+        qlib_config["feature_columns_yesterday"],
+    )
+
+
+def get_dataset_wrapper(qlib_config: dict, part: str, feature_file_extend_name: str) -> BaseDataWrapper:
+    if feature_file_extend_name == "pickle":
+        return get_pickle_dataset_wrapper(qlib_config, part)
+    elif feature_file_extend_name == "csv":
+        return get_csv_dataset_wrapper(qlib_config, part)
+    else:
+        raise ValueError(f"Unsupported feature type: {feature_file_extend_name}")
 
 
 def init_qlib(qlib_config: dict, part: str = None) -> None:
@@ -124,25 +220,7 @@ def init_qlib(qlib_config: dict, part: str = None) -> None:
     # this won't work if it's put outside in case of multiprocessing
     from qlib.data import D  # noqa pylint: disable=C0415,W0611
 
-    if part is None:
-        feature_path = Path(qlib_config["feature_root_dir"]) / "feature.pkl"
-        backtest_path = Path(qlib_config["feature_root_dir"]) / "backtest.pkl"
-    else:
-        feature_path = Path(qlib_config["feature_root_dir"]) / "feature" / (part + ".pkl")
-        backtest_path = Path(qlib_config["feature_root_dir"]) / "backtest" / (part + ".pkl")
-
-    with feature_path.open("rb") as f:
-        feature_dataset = pickle.load(f)
-    with backtest_path.open("rb") as f:
-        backtest_dataset = pickle.load(f)
-
-    dataset = DataWrapper(
-        feature_dataset,
-        backtest_dataset,
-        qlib_config["feature_columns_today"],
-        qlib_config["feature_columns_yesterday"],
-        _internal=True,
-    )
+    dataset = get_dataset_wrapper(qlib_config, part, qlib_config["feature_file_extend_name"])
 
 
 def fetch_features(stock_id: str, date: pd.Timestamp, yesterday: bool = False, backtest: bool = False) -> pd.DataFrame:
