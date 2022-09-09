@@ -65,7 +65,7 @@ def risk_analysis(r, N: int = None, freq: str = "day"):
     mean = r.mean()
     std = r.std(ddof=1)
     annualized_return = mean * N
-    information_ratio = mean / std * np.sqrt(N)
+    information_ratio = mean / std * np.sqrt(N) if std > 0 else 0
     max_drawdown = (r.cumsum() - r.cumsum().cummax()).min()
     data = {
         "mean": mean,
