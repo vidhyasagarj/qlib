@@ -168,7 +168,7 @@ class EnhancedIndexingOptimizer(BaseOptimizer):
         success = False
         try:
             prob = cp.Problem(obj, cons + t_cons)
-            prob.solve(solver=cp.ECOS, warm_start=True, **self.solver_kwargs)
+            prob.solve(solver=cp.SCIP, warm_start=True, **self.solver_kwargs)
             assert prob.status == "optimal"
             success = True
         except Exception as e:
@@ -180,7 +180,7 @@ class EnhancedIndexingOptimizer(BaseOptimizer):
             try:
                 w.value = wb
                 prob = cp.Problem(obj, cons)
-                prob.solve(solver=cp.ECOS, warm_start=True, **self.solver_kwargs)
+                prob.solve(solver=cp.SCIP, warm_start=True, **self.solver_kwargs)
                 assert prob.status in ["optimal", "optimal_inaccurate"]
                 success = True
             except Exception as e:

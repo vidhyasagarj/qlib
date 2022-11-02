@@ -1,19 +1,9 @@
-qlib_init:
-    provider_uri: "~/.qlib/qlib_data/us_data"
-    region: us
-    exp_manager: 
-        class: MLflowExpManager
-        module_path: qlib.workflow.expm
-        kwargs:
-           uri: tra_lstm_alpha360
-           default_exp_name: tra_lstm_alpha360
-
 market: &market all
 benchmark: &benchmark SPY
-filter_instruments: &filter_instruments ^(GLD|SHV|BWX|VWOB|HYG|BNDX|NFTY|EWZ|EWJ|ASHR|VGK|EWS|EWA|VNQ|PDBC|UVXY|PXE|IRBO|BITQ|UUP)$
-filter_start_time: &filter_start_time 2008-01-01
+filter_instruments: &filter_instruments ^(GLD|SHV|HYG|BNDX|NFTY|EWZ|EWJ|ASHR|VGK|EWS|EWA|VNQ|PDBC|PXE|IRBO|BITQ|UUP|ITA|FCG|XME|XAR|PEJ|FTXG|SMH|PPH|REZ|FCOM|VFH|ICLN|PPH|IPAY|VAW|XT|VGT|VPU|USO|SPXU|UVXY|DOG|HDGE)$
+filter_start_time: &filter_start_time 2007-01-01
 filter_end_time: &filter_end_time 2022-08-31
-fit_start_time: &fit_start_time 2008-01-01
+fit_start_time: &fit_start_time 2007-01-01
 fit_end_time: &fit_end_time 2015-12-31
 val_start_time: &val_start_time 2016-01-01
 val_end_time: &val_end_time 2018-12-31
@@ -23,18 +13,11 @@ test_end_time: &test_end_time 2022-08-31
 num_states: &num_states 3
 memory_mode: &memory_mode sample
 
-exp_name : tra_lstm_alpha360
-datahandler: &datahandler Alpha369
+datahandler: &datahandler Alpha158
 
 qlib_init:
     provider_uri: "~/.qlib/qlib_data/us_data"
     region: us
-    exp_manager: 
-        class: MLflowExpManager
-        module_path: qlib.workflow.expm
-        kwargs:
-           uri: *exp_name
-           default_exp_name: *exp_name
 
 data_handler_config: &data_handler_config
     start_time: *filter_start_time
@@ -71,7 +54,7 @@ tra_config: &tra_config
   src_info: LR_TPE
 
 model_config: &model_config
-  input_size: 360
+  input_size: 158
   hidden_size: 256
   num_layers: 2
   rnn_arch: LSTM
@@ -86,8 +69,8 @@ port_analysis_config: &port_analysis_config
             signal:
                 - <MODEL> 
                 - <DATASET>
-            topk: 10
-            n_drop: 2
+            topk: 5
+            n_drop: 1
     backtest:
         start_time: *test_start_time
         end_time: *test_end_time
@@ -112,7 +95,7 @@ task:
         n_epochs: 100
         max_steps_per_epoch:
         early_stop: 20
-        logdir: output/tra_lstm_alpha360
+        logdir: tra_lstm_topK
         seed: 0
         lamb: 1.0
         rho: 0.99

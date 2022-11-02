@@ -6,14 +6,15 @@ import pandas as pd
 
 from qlib.data import D
 from qlib.model.riskmodel import StructuredCovEstimator
+from qlib.data.filter import NameDFilter
 
 
-def prepare_data(riskdata_root="./riskdata", T=240, start_time="2016-01-01"):
+def prepare_data(riskdata_root="./riskdata", T=360, start_time="2020-11-11"):
 
     universe = D.features(D.instruments("all"), ["$close"], start_time=start_time).swaplevel().sort_index()
 
     price_all = (
-        D.features(D.instruments("all"), ["$close"], start_time=start_time).squeeze().unstack(level="instrument")
+        D.features(D.instruments(market='all'), ["$close"], start_time=start_time).squeeze().unstack(level="instrument")
     )
 
     # StructuredCovEstimator is a statistical risk model

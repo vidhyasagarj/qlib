@@ -1,28 +1,20 @@
 market: &market all
 benchmark: &benchmark SPY
-filter_instruments: &filter_instruments ^(GLD|SHV|HYG|NFTY|EWZ|EWJ|ASHR|VGK|EWS|EWA|VNQ|PDBC|PXE|IRBO|BITQ|UUP|ITA|UVXY|DOG|HDGE)$
-filter_start_time: &filter_start_time 2008-01-01
+filter_instruments: &filter_instruments ^(GLD|SHV|HYG|BNDX|NFTY|EWZ|EWJ|ASHR|VGK|EWS|EWA|VNQ|PDBC|PXE|IRBO|BITQ|UUP|ITA|FCG|XME|XAR|PEJ|FTXG|SMH|PPH|REZ|FCOM|VFH|ICLN|PPH|IPAY|VAW|XT|VGT|VPU|USO|SPXU|UVXY|DOG|HDGE)$
+filter_start_time: &filter_start_time 2007-01-01
 filter_end_time: &filter_end_time 2022-08-31
-fit_start_time: &fit_start_time 2008-01-01
+fit_start_time: &fit_start_time 2007-01-01
 fit_end_time: &fit_end_time 2015-12-31
 val_start_time: &val_start_time 2016-01-01
 val_end_time: &val_end_time 2018-12-31
 test_start_time: &test_start_time 2019-01-01
 test_end_time: &test_end_time 2022-08-31
 
-exp_name : &exp_name lightgbm_alpha360
-exp_uri : &exp_uri lightgbm_alpha360/mlruns
-datahandler: &datahandler Alpha360
+datahandler: &datahandler Alpha158
 
 qlib_init:
     provider_uri: "~/.qlib/qlib_data/us_data"
     region: us
-    exp_manager: 
-        class: MLflowExpManager
-        module_path: qlib.workflow.expm
-        kwargs:
-           uri: *exp_uri
-           default_exp_name: *exp_name
 
 data_handler_config: &data_handler_config
     start_time: *filter_start_time
@@ -30,6 +22,11 @@ data_handler_config: &data_handler_config
     fit_start_time: *fit_start_time
     fit_end_time: *fit_end_time
     instruments: *market
+    filter_pipe:
+      - filter_type: NameDFilter
+        name_rule_re: *filter_instruments
+        filter_start_time: *filter_start_time
+        filter_end_time: *filter_end_time
     infer_processors:
       - class: RobustZScoreNorm
         kwargs:
@@ -43,22 +40,24 @@ data_handler_config: &data_handler_config
         kwargs:
           fields_group: label
     label: ["Ref($close, -2) / Ref($close, -1) - 1"]
-    filter_pipe:
-      - filter_type: NameDFilter
-        name_rule_re: *filter_instruments
-        filter_start_time: *filter_start_time
-        filter_end_time: *filter_end_time
 
 port_analysis_config: &port_analysis_config
+    executor: 
+        class: SimulatorExecutor
+        module_path: qlib.backtest.executor
+        kwargs: 
+            time_per_step: day
+            generate_portfolio_metrics: True
     strategy:
-        class: TopkDropoutStrategy
-        module_path: qlib.contrib.strategy
+        class: EnhancedIndexingStrategy
+        module_path: qlib.contrib.strategy.signal_strategy
         kwargs:
-            signal:
-                - <MODEL> 
-                - <DATASET>
-            topk: 50
-            n_drop: 5
+            model: <MODEL>
+            dataset: <DATASET>
+            riskmodel_root: ./riskdata
+            market: *benchmark
+            optimizer_kwargs: 
+                lamb: 10
     backtest:
         start_time: *test_start_time
         end_time: *test_end_time
