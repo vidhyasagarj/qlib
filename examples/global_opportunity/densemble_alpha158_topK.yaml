@@ -1,14 +1,14 @@
 market: &market all
 benchmark: &benchmark SPY
-filter_instruments: &filter_instruments ^(GLD|SHV|HYG|BNDX|NFTY|EWZ|EWJ|ASHR|VGK|EWS|EWA|VNQ|PDBC|PXE|IRBO|BITQ|UUP|ITA|FCG|XME|XAR|PEJ|FTXG|SMH|PPH|REZ|FCOM|VFH|ICLN|PPH|IPAY|VAW|XT|VGT|VPU|USO|SPXU|UVXY|DOG|HDGE)$
+filter_instruments: &filter_instruments ^(GLD|SHV|AGG|BNDX|QQQ|EEMX|EEMA|VNQ|VAW|PXE|IRBO|XME|SMH|ICLN|IPAY|XT|VGT|LIT|UVXY|DOG)$
 filter_start_time: &filter_start_time 2007-01-01
-filter_end_time: &filter_end_time 2022-08-31
+filter_end_time: &filter_end_time 2021-12-31
 fit_start_time: &fit_start_time 2007-01-01
-fit_end_time: &fit_end_time 2015-12-31
-val_start_time: &val_start_time 2016-01-01
-val_end_time: &val_end_time 2018-12-31
-test_start_time: &test_start_time 2019-01-01
-test_end_time: &test_end_time 2022-08-31
+fit_end_time: &fit_end_time 2016-12-31
+val_start_time: &val_start_time 2017-01-01
+val_end_time: &val_end_time 2019-12-31
+test_start_time: &test_start_time 2020-01-01
+test_end_time: &test_end_time 2022-10-31
 
 datahandler: &datahandler Alpha158
 
@@ -49,7 +49,7 @@ port_analysis_config: &port_analysis_config
             signal:
                 - <MODEL> 
                 - <DATASET>
-            topk: 5
+            topk: 10
             n_drop: 1
     backtest:
         start_time: *test_start_time
